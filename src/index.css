@@ -1,19 +1,67 @@
 @import "tailwindcss";
 
-@layer utilities {
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: #334155; 
-    border-radius: 20px;
-  }
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: #334155 transparent;
-  }
+:root {
+  --bg-0: #0a0a0a;
+  --bg-1: #111111;
+  --bg-2: #1c1c1c;
+  --bg-3: #2c2c2c;
+  --fg-0: #ffffff;
+  --fg-1: #d4d4d4;
+  --fg-2: #9ca3af;
+  --fg-3: #6b7280;
+  --border: rgba(255, 255, 255, 0.16);
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.72);
 }
 
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 0% 0%, rgba(255, 255, 255, 0.04), transparent 60%),
+    radial-gradient(900px 500px at 100% 100%, rgba(255, 255, 255, 0.03), transparent 60%),
+    var(--bg-0);
+  color: var(--fg-1);
+  font-family: 'Roboto Condensed', sans-serif;
+}
+
+.app-shell {
+  width: min(1180px, 94vw);
+  margin: 32px auto;
+  background: rgba(6, 6, 6, 0.94);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.panel {
+  background: rgba(17, 17, 17, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.upper {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 2px;
+  height: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #383838;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #383838 transparent;
+}

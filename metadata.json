@@ -1,6 +1,6 @@
 {
-  "name": "FiveCheck AI",
-  "description": "Uma versão portável do FiveCheck, analisando servidores de FiveM diretamente do seu navegador, sem instalação local.",
+  "name": "FiveCheck",
+  "description": "Aplicativo para analisar sinais de jogadores suspeitos em servidores FiveM.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
