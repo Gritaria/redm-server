@@ -1,0 +1,6 @@
+{
+  "name": "FiveCheck AI",
+  "description": "Uma versão portável do FiveCheck, analisando servidores de FiveM diretamente do seu navegador, sem instalação local.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
