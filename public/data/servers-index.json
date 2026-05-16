@@ -1,0 +1,95 @@
+{
+  "generated_at": "2026-05-15T00:00:00Z",
+  "source": "public-cfx-sample",
+  "policy": {
+    "public_data_only": true,
+    "rate_limit_note": "Coleta limitada por execução e com cache para evitar scraping agressivo."
+  },
+  "servers": [
+    {
+      "id": "sample-redm-001",
+      "join_ref": "abc123",
+      "hostname": { "value": "Rexshack Frontier RP", "confidence": "detected", "source": "public-list" },
+      "players": { "value": 87, "confidence": "detected" },
+      "max_players": { "value": 128, "confidence": "detected" },
+      "upvotes": { "value": 412, "confidence": "detected" },
+      "locale": { "value": "pt-BR", "confidence": "estimated" },
+      "category": { "value": "roleplay", "confidence": "estimated" },
+      "resources_detected": { "value": ["ylx-memenu", "ylx-desafios", "rsg-core"], "confidence": "detected", "source": "public-endpoint" },
+      "rr_restart_window": { "value": "06:00-06:10 UTC", "confidence": "estimated", "source": "historical-pattern" },
+      "players_list": {
+        "value": [
+          { "id": 11, "name": "John Marston", "ping": 54 },
+          { "id": 27, "name": "Player983", "ping": 55 },
+          { "id": 28, "name": "Player984", "ping": 56 }
+        ],
+        "confidence": "detected"
+      },
+      "bot_score": {
+        "score": 61,
+        "estimated_bots": 9,
+        "level": "medium",
+        "reasons": [
+          { "rule": "sequence_match", "value": 0.72 },
+          { "rule": "ping_cluster", "value": 0.68 },
+          { "rule": "name_pattern", "value": 0.54 },
+          { "rule": "session_spike", "value": 0.20 },
+          { "rule": "historical_fingerprint", "value": 0.62 }
+        ]
+      },
+      "last_seen": "2026-05-15T00:00:00Z"
+    },
+    {
+      "id": "sample-redm-002",
+      "join_ref": "def456",
+      "hostname": { "value": "Sertao Oeste RP", "confidence": "detected" },
+      "players": { "value": 34, "confidence": "detected" },
+      "max_players": { "value": 96, "confidence": "detected" },
+      "upvotes": { "value": 109, "confidence": "detected" },
+      "locale": { "value": "pt-BR", "confidence": "detected" },
+      "category": { "value": "roleplay", "confidence": "estimated" },
+      "resources_detected": { "value": ["ylx-memenu", "ox_lib"], "confidence": "detected" },
+      "rr_restart_window": { "value": "Nao confirmado", "confidence": "unconfirmed" },
+      "players_list": { "value": [], "confidence": "unconfirmed" },
+      "bot_score": {
+        "score": 22,
+        "estimated_bots": 2,
+        "level": "low",
+        "reasons": [
+          { "rule": "sequence_match", "value": 0.10 },
+          { "rule": "ping_cluster", "value": 0.23 },
+          { "rule": "name_pattern", "value": 0.18 },
+          { "rule": "session_spike", "value": 0.12 },
+          { "rule": "historical_fingerprint", "value": 0.20 }
+        ]
+      },
+      "last_seen": "2026-05-15T00:00:00Z"
+    },
+    {
+      "id": "sample-redm-003",
+      "join_ref": "ghi789",
+      "hostname": { "value": "Prairie County", "confidence": "detected" },
+      "players": { "value": 120, "confidence": "detected" },
+      "max_players": { "value": 128, "confidence": "detected" },
+      "upvotes": { "value": 598, "confidence": "detected" },
+      "locale": { "value": "en-US", "confidence": "detected" },
+      "category": { "value": "freeroam", "confidence": "estimated" },
+      "resources_detected": { "value": ["rsg-core", "rsg-inventory", "ylx-desafios"], "confidence": "estimated" },
+      "rr_restart_window": { "value": "04:00 UTC", "confidence": "estimated" },
+      "players_list": { "value": [], "confidence": "unconfirmed" },
+      "bot_score": {
+        "score": 74,
+        "estimated_bots": 21,
+        "level": "high",
+        "reasons": [
+          { "rule": "sequence_match", "value": 0.81 },
+          { "rule": "ping_cluster", "value": 0.79 },
+          { "rule": "name_pattern", "value": 0.73 },
+          { "rule": "session_spike", "value": 0.42 },
+          { "rule": "historical_fingerprint", "value": 0.70 }
+        ]
+      },
+      "last_seen": "2026-05-15T00:00:00Z"
+    }
+  ]
+}

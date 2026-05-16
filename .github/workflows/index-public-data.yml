@@ -1,0 +1,41 @@
+name: index-public-data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+jobs:
+  build-index:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate public index
+        env:
+          MAX_SERVERS: "200"
+          CFX_REDM_STREAM_URL: "https://servers-frontend.fivem.net/api/servers/streamRedM/"
+        run: node scripts/index-public-data.mjs
+
+      - name: Commit updated json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/*.json
+          if git diff --cached --quiet; then
+            echo "No data changes"
+            exit 0
+          fi
+          git commit -m "chore(data): update public index"
+          git push

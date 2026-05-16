@@ -1,3 +1,12 @@
+export type ConfidenceTag = 'detected' | 'estimated' | 'unconfirmed';
+
+export type DataField<T> = {
+  value: T;
+  confidence: ConfidenceTag;
+  source?: string;
+  updated_at?: string;
+};
+
 export type Player = {
   id: number;
   name: string;
@@ -19,12 +28,61 @@ export type HeuristicResult = {
   detail_args?: Record<string, string | number>;
 };
 
-export type ScanResponse = {
-  server: string;
-  server_name?: string;
-  player_count: number;
+export type BotScore = {
+  score: number;
   estimated_bots: number;
-  confidence: number;
+  level: 'low' | 'medium' | 'high';
   reasons: HeuristicResult[];
-  snapshots: Snapshot[];
+};
+
+export type ServerIndexEntry = {
+  id: string;
+  join_ref?: string;
+  hostname: DataField<string>;
+  players: DataField<number>;
+  max_players: DataField<number>;
+  upvotes: DataField<number>;
+  locale?: DataField<string>;
+  category?: DataField<string>;
+  resources_detected: DataField<string[]>;
+  rr_restart_window?: DataField<string>;
+  players_list?: DataField<Player[]>;
+  bot_score?: BotScore;
+  last_seen: string;
+};
+
+export type ServerIndex = {
+  generated_at: string;
+  source: string;
+  policy: {
+    public_data_only: boolean;
+    rate_limit_note: string;
+  };
+  servers: ServerIndexEntry[];
+};
+
+export type ResourceHistoryEntry = {
+  resource: string;
+  first_detected: string;
+  last_detected: string;
+  status: 'active' | 'stale' | 'unknown';
+};
+
+export type ResourceIndexEntry = {
+  resource: string;
+  servers: Array<{
+    server_id: string;
+    hostname: string;
+    last_seen: string;
+  }>;
+};
+
+export type ResourceIndex = {
+  generated_at: string;
+  resources: ResourceIndexEntry[];
+};
+
+export type DetectionHistory = {
+  generated_at: string;
+  history: ResourceHistoryEntry[];
 };

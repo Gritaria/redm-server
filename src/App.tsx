@@ -1,275 +1,265 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Activity, AlertTriangle, Copy, Search, ShieldAlert, Server, ExternalLink, Users, Ghost, Bot, Clock } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { Gauge } from './components/Gauge';
-import { aggregate } from './lib/heuristics';
-import type { ScanResponse, Snapshot, Player } from './lib/types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Search, Server, Users, ThumbsUp, Clock3, ShieldAlert } from 'lucide-react';
+import type { DetectionHistory, ResourceIndex, ServerIndex, ServerIndexEntry, ConfidenceTag } from './lib/types';
+import { loadDetectionHistory, loadResourceIndex, loadServerIndex } from './lib/publicData';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+function tagLabel(tag: ConfidenceTag) {
+  if (tag === 'detected') return 'detectada';
+  if (tag === 'estimated') return 'estimada';
+  return 'nao confirmada';
 }
 
-const LABELS: Record<string, { name: string; desc: string }> = {
-  sequence_match: { name: 'Sequence Match', desc: 'Checa entradas repetidas na mesma sequencia.' },
-  ping_cluster: { name: 'Ping Cluster', desc: 'Detecta grupos com ping muito parecido.' },
-  name_pattern: { name: 'Name Pattern', desc: 'Detecta nomes genericos ou padrao repetido.' },
-  session_spike: { name: 'Session Spike', desc: 'Sinaliza picos de entrada fora do normal.' },
-  historical_fingerprint: { name: 'Historical Fingerprint', desc: 'Compara recorrencia de endpoints ao longo do tempo.' },
-};
-
-const LOCAL_SNAP_STORE = new Map<string, Snapshot[]>();
-
-function parseQuery(q: string): { serverRef: string; type: 'serverId' | 'hash' | 'raw' } {
-  const trimmed = q.trim();
-  const cfxMatch = trimmed.match(/cfx\.re\/join\/([A-Za-z0-9]+)/i);
-  if (cfxMatch) return { serverRef: cfxMatch[1], type: 'hash' };
-  const detailMatch = trimmed.match(/servers\.fivem\.net\/servers\/detail\/([A-Za-z0-9]+)/i);
-  if (detailMatch) return { serverRef: detailMatch[1], type: 'hash' };
-  if (/^[a-f0-9]{32}$/i.test(trimmed)) return { serverRef: trimmed, type: 'serverId' };
-  return { serverRef: trimmed, type: 'raw' };
-}
-
-function stripColorCodes(s: string): string {
-  try {
-    return String(s).replace(/\^[0-9A-Za-z]/g, '').replace(/\s{2,}/g, ' ').trim();
-  } catch {
-    return s;
-  }
+function tagClass(tag: ConfidenceTag) {
+  if (tag === 'detected') return 'text-[#10b981]';
+  if (tag === 'estimated') return 'text-[#eab308]';
+  return 'text-[#f97316]';
 }
 
 export default function App() {
-  const [query, setQuery] = useState('');
-  const [jobId] = useState(`job-${Math.floor(Math.random() * 10000)}`);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ScanResponse | null>(null);
+  const [serverData, setServerData] = useState<ServerIndex | null>(null);
+  const [resourceData, setResourceData] = useState<ResourceIndex | null>(null);
+  const [historyData, setHistoryData] = useState<DetectionHistory | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const handleScan = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!query.trim()) return;
+  const [query, setQuery] = useState('');
+  const [resourceQuery, setResourceQuery] = useState('');
+  const [minPlayers, setMinPlayers] = useState(0);
+  const [minUpvotes, setMinUpvotes] = useState(0);
+  const [sortBy, setSortBy] = useState<'players' | 'upvotes'>('players');
+  const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const parsed = parseQuery(query);
-      const serverRef = parsed.serverRef;
-      const targetUrl = `https://servers-frontend.fivem.net/api/servers/single/${serverRef}`;
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-
-      const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error(`Erro no proxy: ${res.status}`);
-
-      const proxyData = await res.json();
-      if (!proxyData.contents) throw new Error('Nao foi possivel resolver o servidor.');
-
-      const json = JSON.parse(proxyData.contents);
-      if (!json.Data) throw new Error('Server ID ou link CFX invalido.');
-
-      const serverNameRaw = String((json?.Data?.hostname ?? json?.Data?.server ?? json?.Data?.vars?.sv_hostname ?? '') || '');
-      const serverName = serverNameRaw ? stripColorCodes(serverNameRaw) : undefined;
-
-      const players: Player[] = (json?.Data?.players || []).map((p: any) => ({
-        id: Number(p.id ?? 0),
-        name: String(p.name ?? ''),
-        ping: Number(p.ping ?? 0),
-        endpoint: p.endpoint,
-        identifiers: p.identifiers,
-      }));
-
-      const snap: Snapshot = { ts: new Date().toISOString(), players };
-      const arr = LOCAL_SNAP_STORE.get(jobId) ?? [];
-
-      if (arr.length > 0) {
-        const last = arr[arr.length - 1];
-        const lastIds = last.players.map((p) => p.id).join(',');
-        const currentIds = snap.players.map((p) => p.id).join(',');
-        if (lastIds !== currentIds) arr.push(snap);
-      } else {
-        arr.push(snap);
+  useEffect(() => {
+    async function boot() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [servers, resources, history] = await Promise.all([
+          loadServerIndex(),
+          loadResourceIndex(),
+          loadDetectionHistory(),
+        ]);
+        setServerData(servers);
+        setResourceData(resources);
+        setHistoryData(history);
+        setSelectedServerId(servers.servers[0]?.id ?? null);
+      } catch (e: any) {
+        setError(e?.message ?? 'Falha ao carregar dados publicos.');
+      } finally {
+        setLoading(false);
       }
-
-      const limitedArr = arr.slice(-5);
-      LOCAL_SNAP_STORE.set(jobId, limitedArr);
-
-      const agg = aggregate(players, limitedArr);
-
-      setResult({
-        server: serverRef,
-        server_name: serverName,
-        player_count: players.length,
-        estimated_bots: agg.estimatedBots,
-        confidence: agg.confidence,
-        reasons: agg.reasons,
-        snapshots: limitedArr,
-      });
-    } catch (err: any) {
-      setError(err.message || 'Erro inesperado ao consultar o servidor.');
-    } finally {
-      setLoading(false);
     }
-  };
+    boot();
+  }, []);
 
-  const copyReport = () => {
-    if (!result) return;
-    const txt = `
-[FiveCheck Report]
-Server: ${result.server_name || result.server}
-Players: ${result.player_count}
-Estimated Bots: ${result.estimated_bots}
-Confidence Score: ${result.confidence}%
+  const filteredServers = useMemo(() => {
+    const list = serverData?.servers ?? [];
+    return list
+      .filter((s) => s.players.value >= minPlayers)
+      .filter((s) => s.upvotes.value >= minUpvotes)
+      .filter((s) => {
+        if (!query.trim()) return true;
+        const q = query.toLowerCase();
+        return (
+          s.hostname.value.toLowerCase().includes(q) ||
+          s.id.toLowerCase().includes(q) ||
+          (s.join_ref ?? '').toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => b[sortBy].value - a[sortBy].value);
+  }, [serverData, minPlayers, minUpvotes, query, sortBy]);
 
-Heuristics Breakdown:
-${result.reasons.map((r) => `- ${LABELS[r.rule]?.name || r.rule}: ${(r.value * 100).toFixed(1)}%`).join('\n')}
-    `.trim();
-    navigator.clipboard.writeText(txt);
-    alert('Relatorio copiado.');
-  };
+  const selectedServer = useMemo(() => {
+    if (!selectedServerId || !serverData) return null;
+    return serverData.servers.find((s) => s.id === selectedServerId) ?? null;
+  }, [selectedServerId, serverData]);
 
-  const latestPlayers = result?.snapshots?.length ? result.snapshots[result.snapshots.length - 1].players : [];
+  const matchedResources = useMemo(() => {
+    const q = resourceQuery.trim().toLowerCase();
+    if (!resourceData) return [];
+    if (!q) return resourceData.resources.slice(0, 20);
+    return resourceData.resources.filter((r) => r.resource.toLowerCase().includes(q));
+  }, [resourceData, resourceQuery]);
+
+  const resourceHistoryMap = useMemo(() => {
+    const map = new Map<string, DetectionHistory['history'][number]>();
+    (historyData?.history ?? []).forEach((h) => map.set(h.resource, h));
+    return map;
+  }, [historyData]);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center upper">Carregando base publica...</div>;
+  }
+
+  if (error) {
+    return <div className="min-h-screen flex items-center justify-center text-[#f43f5e] upper">{error}</div>;
+  }
 
   return (
-    <div className="min-h-screen py-6 px-3 md:px-6 text-[var(--fg-1)]">
-      <main className="app-shell">
+    <div className="min-h-screen py-6 px-3 md:px-6">
+      <main className="app-shell text-[var(--fg-1)]">
         <header className="h-[58px] flex items-center justify-between px-5 border-b border-[#1f1f1f] bg-black/40">
           <div className="flex items-center gap-3">
             <span className="w-1 h-4 bg-white" />
-            <h1 className="upper text-xs tracking-[0.27em] text-[#e6e6e6] font-bold">FiveCheck</h1>
+            <h1 className="upper text-xs tracking-[0.27em] text-[#e6e6e6] font-bold">FiveCheck Index</h1>
           </div>
-          <div className="flex items-center gap-2 text-[10px] upper text-[#858585]">
-            <ShieldAlert className="w-4 h-4" /> Server Analyzer
-          </div>
+          <div className="upper text-[10px] text-[#858585]">Dados publicos | Cache + Rate Limit</div>
         </header>
 
-        <section className="p-4 md:p-5 border-b border-[#242424] bg-black/30">
-          <form onSubmit={handleScan} className="flex flex-col md:flex-row gap-2">
-            <label className="panel h-11 flex-1 flex items-center px-3 gap-2">
-              <Search className="w-4 h-4 text-[#6f7683]" />
-              <input
-                type="text"
-                className="w-full bg-transparent outline-none text-[#f5f5f5] placeholder:text-[#6b7280] upper text-[12px]"
-                placeholder="CFX join link, server id ou IP"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={loading || !query}
-              className="h-11 px-5 upper text-[11px] font-bold border border-[#2f2f2f] bg-[#111] text-[#d4d4d4] hover:bg-[#1a1a1a] hover:text-white disabled:opacity-50"
-            >
-              {loading ? <Activity className="w-4 h-4 animate-spin" /> : 'Scan'}
-            </button>
-          </form>
+        <section className="p-4 border-b border-[#242424] bg-black/30 grid grid-cols-1 md:grid-cols-5 gap-2">
+          <label className="panel h-10 px-3 flex items-center gap-2 md:col-span-2">
+            <Search className="w-4 h-4 text-[#6f7683]" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar servidor" className="bg-transparent w-full outline-none upper text-[11px]" />
+          </label>
+          <label className="panel h-10 px-3 flex items-center justify-between upper text-[11px]">
+            Min players
+            <input type="number" value={minPlayers} onChange={(e) => setMinPlayers(Number(e.target.value || 0))} className="w-16 bg-transparent text-right outline-none" />
+          </label>
+          <label className="panel h-10 px-3 flex items-center justify-between upper text-[11px]">
+            Min upvotes
+            <input type="number" value={minUpvotes} onChange={(e) => setMinUpvotes(Number(e.target.value || 0))} className="w-16 bg-transparent text-right outline-none" />
+          </label>
+          <label className="panel h-10 px-3 flex items-center justify-between upper text-[11px]">
+            Ordenar
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as 'players' | 'upvotes')} className="bg-transparent outline-none">
+              <option value="players">players</option>
+              <option value="upvotes">upvotes</option>
+            </select>
+          </label>
         </section>
 
-        <AnimatePresence>
-          {error && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="m-4 panel p-3 flex items-center gap-2 text-[#fca5a5]">
-              <AlertTriangle className="w-4 h-4" />
-              <p className="upper text-[11px]">{error}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <section className="grid grid-cols-1 xl:grid-cols-5 gap-3 p-4">
+          <div className="panel xl:col-span-2 p-2 max-h-[520px] overflow-y-auto custom-scrollbar">
+            <div className="upper text-[10px] text-[#6f7683] px-2 pb-2">Lista de Servidores ({filteredServers.length})</div>
+            {filteredServers.map((s) => (
+              <button key={s.id} onClick={() => setSelectedServerId(s.id)} className="w-full text-left panel mb-2 p-2 hover:bg-[#1a1a1a]">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="upper text-[11px] text-white truncate">{s.hostname.value}</p>
+                  <span className={`upper text-[10px] ${tagClass(s.hostname.confidence)}`}>{tagLabel(s.hostname.confidence)}</span>
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-[11px] text-[#9ca3af] upper">
+                  <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" />{s.players.value}/{s.max_players.value}</span>
+                  <span className="inline-flex items-center gap-1"><ThumbsUp className="w-3 h-3" />{s.upvotes.value}</span>
+                </div>
+              </button>
+            ))}
+          </div>
 
-        {result && !error && (
-          <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 md:p-5">
-            <div className="panel p-4 flex flex-col items-center">
-              <h2 className="upper text-[10px] text-[#6f7683] mb-3">Bot Probability</h2>
-              <Gauge value={result.confidence} size={140} strokeWidth={12} className="mb-4" />
-              <div className="w-full space-y-2">
-                <div className="panel p-2 flex justify-between upper text-[11px]"><span>Total Players</span><strong>{result.player_count}</strong></div>
-                <div className="panel p-2 flex justify-between upper text-[11px]"><span>Bot Estimate</span><strong className="text-[#f43f5e]">{result.estimated_bots}</strong></div>
-              </div>
-            </div>
+          <div className="panel xl:col-span-3 p-3">
+            {!selectedServer ? (
+              <p className="upper text-[11px] text-[#6b7280]">Selecione um servidor.</p>
+            ) : (
+              <ServerDetail server={selectedServer} />
+            )}
+          </div>
+        </section>
 
-            <div className="panel p-4 lg:col-span-2">
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <h3 className="upper text-[12px] text-white flex items-center gap-2"><Server className="w-4 h-4" /> {result.server_name || result.server}</h3>
-                <span className="upper text-[10px] px-2 py-1 border border-[#2f2f2f] bg-[#111]">{result.server}</span>
-              </div>
-              <div className="space-y-2">
-                {result.reasons.map((ruleStat, idx) => {
-                  const labelInfo = LABELS[ruleStat.rule] || { name: ruleStat.rule, desc: 'Regra nao mapeada.' };
-                  const percent = Math.round(ruleStat.value * 100);
-                  return (
-                    <div key={idx} className="panel p-3">
-                      <div className="flex justify-between gap-2">
-                        <div>
-                          <p className="upper text-[11px] text-[#f5f5f5]">{labelInfo.name}</p>
-                          <p className="text-[11px] text-[#9ca3af]">{labelInfo.desc}</p>
-                        </div>
-                        <span className={cn('upper text-[10px] font-bold', percent > 50 ? 'text-[#f43f5e]' : percent > 20 ? 'text-[#eab308]' : 'text-[#10b981]')}>{percent}%</span>
-                      </div>
-                      <div className="h-1 w-full bg-[#2c2c2c] mt-2">
-                        <div className={cn('h-full', percent > 50 ? 'bg-[#f43f5e]' : percent > 20 ? 'bg-[#eab308]' : 'bg-[#10b981]')} style={{ width: `${percent}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-4 pt-4 border-t border-[#2f2f2f] flex flex-col sm:flex-row gap-2">
-                <button onClick={copyReport} className="h-10 px-4 panel upper text-[11px] font-bold flex items-center justify-center gap-2 hover:bg-[#1a1a1a]"><Copy className="w-4 h-4" />Copy Report</button>
-                <a href="https://support.cfx.re/hc/en-us/requests/new" target="_blank" rel="noreferrer" className="h-10 px-4 border border-[#2f2f2f] bg-[#111] upper text-[11px] font-bold flex items-center justify-center gap-2 hover:bg-[#1a1a1a]"><ExternalLink className="w-4 h-4" />Report to CFX Support</a>
-              </div>
-            </div>
+        <section className="p-4 border-t border-[#242424] bg-black/20">
+          <h2 className="upper text-[12px] text-white mb-2">Busca Global de Resource/Script</h2>
+          <label className="panel h-10 px-3 flex items-center gap-2 mb-3">
+            <Search className="w-4 h-4 text-[#6f7683]" />
+            <input value={resourceQuery} onChange={(e) => setResourceQuery(e.target.value)} placeholder="Ex: ylx-memenu" className="bg-transparent w-full outline-none upper text-[11px]" />
+          </label>
 
-            <div className="panel p-4 lg:col-span-3">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="upper text-[12px] text-white flex items-center gap-2"><Users className="w-4 h-4" />Connected Players</h3>
-                <span className="upper text-[10px] text-[#9ca3af]">{result.player_count} online</span>
-              </div>
-
-              <div className="max-h-[380px] overflow-y-auto custom-scrollbar">
-                {latestPlayers.length === 0 ? (
-                  <p className="upper text-[11px] text-[#6b7280]">Sem dados de jogadores.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {(() => {
-                      const nameFreq = latestPlayers.reduce((acc, p) => {
-                        const low = p.name.toLowerCase();
-                        acc[low] = (acc[low] || 0) + 1;
-                        return acc;
-                      }, {} as Record<string, number>);
-
-                      return latestPlayers.map((player) => {
-                        const isGeneric = /player\s*\d+|user\s*\d+|test|bot|unknown/i.test(player.name.trim().toLowerCase());
-                        const cloneCount = nameFreq[player.name.toLowerCase()] || 0;
-                        const isClone = cloneCount > 1;
-                        const isHighPing = player.ping > 150;
-
-                        const anomalies = [] as Array<{ id: string; label: string; icon: typeof Bot }>;
-                        if (isGeneric) anomalies.push({ id: 'generic', label: 'Generic', icon: Bot });
-                        if (isClone) anomalies.push({ id: 'clone', label: `Clone (${cloneCount}x)`, icon: Ghost });
-                        if (isHighPing) anomalies.push({ id: 'ping', label: 'High Ping', icon: Clock });
-
-                        return (
-                          <div key={player.id} className="panel p-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="upper text-[11px] text-[#f5f5f5] truncate">#{player.id} {player.name}</p>
-                              <span className={cn('text-[10px] upper font-bold', player.ping > 150 ? 'text-[#f43f5e]' : player.ping > 80 ? 'text-[#eab308]' : 'text-[#10b981]')}>{player.ping}ms</span>
-                            </div>
-                            {anomalies.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                {anomalies.map((a) => {
-                                  const Icon = a.icon;
-                                  return <span key={a.id} className="upper text-[10px] px-1 py-0.5 border border-[#2f2f2f] text-[#9ca3af] inline-flex items-center gap-1"><Icon className="w-3 h-3" />{a.label}</span>;
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      });
-                    })()}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="panel p-2 max-h-[320px] overflow-y-auto custom-scrollbar">
+              {matchedResources.map((r) => {
+                const h = resourceHistoryMap.get(r.resource);
+                return (
+                  <div key={r.resource} className="panel p-2 mb-2">
+                    <p className="upper text-[11px] text-white">{r.resource}</p>
+                    <p className="upper text-[10px] text-[#9ca3af]">Servidores detectados: {r.servers.length}</p>
+                    {h && (
+                      <p className="upper text-[10px] text-[#9ca3af]">Primeira: {h.first_detected} | Ultima: {h.last_detected} | Status: {h.status}</p>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })}
             </div>
-          </section>
-        )}
+
+            <div className="panel p-2 max-h-[320px] overflow-y-auto custom-scrollbar">
+              {matchedResources[0] ? (
+                matchedResources[0].servers.map((s) => (
+                  <div key={`${matchedResources[0].resource}-${s.server_id}`} className="panel p-2 mb-2">
+                    <p className="upper text-[11px] text-white">{s.hostname}</p>
+                    <p className="upper text-[10px] text-[#9ca3af]">Server ID: {s.server_id}</p>
+                    <p className="upper text-[10px] text-[#9ca3af]">Ultima deteccao: {s.last_seen}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="upper text-[11px] text-[#6b7280]">Sem resultado.</p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="p-4 border-t border-[#242424]">
+          <h2 className="upper text-[12px] text-white mb-2">Confianca dos dados</h2>
+          <p className="upper text-[10px] text-[#10b981]">Detectada: veio direto de dado publico observado.</p>
+          <p className="upper text-[10px] text-[#eab308]">Estimada: inferida por padrao historico/heuristica.</p>
+          <p className="upper text-[10px] text-[#f97316]">Nao confirmada: sem observacao suficiente no momento.</p>
+          <p className="upper text-[10px] text-[#9ca3af] mt-2 inline-flex items-center gap-1"><ShieldAlert className="w-3 h-3" />Score de bot e probabilistico e nao substitui revisao humana.</p>
+        </section>
       </main>
+    </div>
+  );
+}
+
+function ServerDetail({ server }: { server: ServerIndexEntry }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h3 className="upper text-[12px] text-white inline-flex items-center gap-2"><Server className="w-4 h-4" />{server.hostname.value}</h3>
+        <span className={`upper text-[10px] ${tagClass(server.hostname.confidence)}`}>{tagLabel(server.hostname.confidence)}</span>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+        <Metric label="Players" value={`${server.players.value}/${server.max_players.value}`} />
+        <Metric label="Upvotes" value={`${server.upvotes.value}`} />
+        <Metric label="Ultimo seen" value={server.last_seen} />
+        <Metric label="Join ref" value={server.join_ref ?? 'n/a'} />
+      </div>
+
+      <div className="panel p-2 mb-2">
+        <p className="upper text-[10px] text-[#6f7683] mb-1 inline-flex items-center gap-1"><Clock3 className="w-3 h-3" />RR/restart</p>
+        <p className="upper text-[11px] text-white">{server.rr_restart_window?.value ?? 'Nao informado'}</p>
+        {server.rr_restart_window && <p className={`upper text-[10px] ${tagClass(server.rr_restart_window.confidence)}`}>{tagLabel(server.rr_restart_window.confidence)}</p>}
+      </div>
+
+      <div className="panel p-2 mb-2">
+        <p className="upper text-[10px] text-[#6f7683] mb-1">Resources detectados</p>
+        <div className="flex flex-wrap gap-1">
+          {server.resources_detected.value.map((r) => (
+            <span key={r} className="upper text-[10px] px-2 py-1 border border-[#2f2f2f]">{r}</span>
+          ))}
+        </div>
+        <p className={`upper text-[10px] mt-1 ${tagClass(server.resources_detected.confidence)}`}>{tagLabel(server.resources_detected.confidence)}</p>
+      </div>
+
+      <div className="panel p-2 mb-2">
+        <p className="upper text-[10px] text-[#6f7683] mb-1">Bot score</p>
+        <p className="upper text-[11px] text-white">Score: {server.bot_score?.score ?? 0} | Nivel: {server.bot_score?.level ?? 'n/a'} | Estimativa bots: {server.bot_score?.estimated_bots ?? 0}</p>
+      </div>
+
+      <div className="panel p-2 max-h-[170px] overflow-y-auto custom-scrollbar">
+        <p className="upper text-[10px] text-[#6f7683] mb-1">Lista de jogadores</p>
+        {server.players_list?.value?.length ? (
+          server.players_list.value.map((p) => (
+            <div key={p.id} className="upper text-[10px] text-[#d4d4d4]">#{p.id} {p.name} ({p.ping}ms)</div>
+          ))
+        ) : (
+          <p className="upper text-[10px] text-[#6b7280]">Nao confirmada neste ciclo.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="panel p-2">
+      <p className="upper text-[10px] text-[#6f7683]">{label}</p>
+      <p className="upper text-[11px] text-white truncate">{value}</p>
     </div>
   );
 }

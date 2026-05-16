@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-05-15T00:00:00Z",
+  "resources": [
+    {
+      "resource": "ylx-memenu",
+      "servers": [
+        { "server_id": "sample-redm-001", "hostname": "Rexshack Frontier RP", "last_seen": "2026-05-15T00:00:00Z" },
+        { "server_id": "sample-redm-002", "hostname": "Sertao Oeste RP", "last_seen": "2026-05-15T00:00:00Z" }
+      ]
+    },
+    {
+      "resource": "ylx-desafios",
+      "servers": [
+        { "server_id": "sample-redm-001", "hostname": "Rexshack Frontier RP", "last_seen": "2026-05-15T00:00:00Z" },
+        { "server_id": "sample-redm-003", "hostname": "Prairie County", "last_seen": "2026-05-15T00:00:00Z" }
+      ]
+    }
+  ]
+}
